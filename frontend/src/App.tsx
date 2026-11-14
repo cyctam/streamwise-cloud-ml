@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import {
   Activity, ArrowUpRight, BarChart3, BrainCircuit, ChevronDown, Database,
   FileChartColumn, Gauge, Github, Layers3, LayoutDashboard, Menu, Network,
-  RefreshCw, ShieldCheck, Sparkles, Users, X, Clock3, Workflow,
+  RefreshCw, Sparkles, Users, X,
 } from 'lucide-react';
 import {
   Area, AreaChart, Bar, BarChart, CartesianGrid, Cell, Legend, Line, LineChart,
@@ -301,7 +301,7 @@ function Overview({ data, loading }: { data: OverviewResponse | null; loading: b
             <div><span className="section-kicker">TAXONOMY</span><h2>Interaction signals</h2></div>
           </div>
           <div>
-            {(data?.event_distribution || []).map((item, index) => {
+            {(data?.event_distribution || []).map((item) => {
               const max = Math.max(...(data?.event_distribution || []).map(r => r.count), 1);
               return (
                 <div className="event-bar-row" key={item.event}>
@@ -351,7 +351,7 @@ function Datasets({ datasets, selected, preview, profile, onSelect }: any) {
           <div className="table-scroll">
             <table>
               <thead><tr>{preview.columns.map((c: string) => <th key={c}>{c.replace(/_/g, ' ')}</th>)}</tr></thead>
-              <tbody>{preview.rows.map((row: any, i: number) => <tr key={i}>{preview.columns.map((c: string) => <td key={c}>{String(row[c] ?? '—')}</td>)}</tr>)}</tbody>
+              <tbody>{preview.rows.map((row: any, rowIndex: number) => <tr key={rowIndex}>{preview.columns.map((c: string) => <td key={c}>{String(row[c] ?? '—')}</td>)}</tr>)}</tbody>
             </table>
           </div>
         ) : <div className="empty-state">No data</div>}
@@ -537,7 +537,7 @@ function Architecture() {
   ];
   return (
     <div style={{ maxWidth: '800px' }}>
-      {stages.map((stage, i) => (
+      {stages.map((stage) => (
         <div key={stage.n} style={{ display: 'flex', gap: '20px', marginBottom: '24px' }}>
           <div style={{ width: '40px', height: '40px', borderRadius: '50%', background: 'var(--panel)', border: '1px solid var(--line)', display: 'grid', placeItems: 'center', flexShrink: 0, fontFamily: 'JetBrains Mono', fontSize: '12px', color: 'var(--muted)' }}>{stage.n}</div>
           <div>

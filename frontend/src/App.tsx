@@ -125,7 +125,7 @@ export default function App() {
           <div className="top-actions">
             <div className="env-pill"><span className="pulse-dot" /> LOCAL</div>
             <button className="icon-button" onClick={() => void refresh()}><RefreshCw size={16} /></button>
-            <a className="icon-button" href="https://github.com/cyctam/streamwise-devops" target="_blank" rel="noreferrer"><Github size={16} /></a>
+            <a className="icon-button" href="https://github.com/cyctam/streamwise-cloud-ml" target="_blank" rel="noreferrer"><Github size={16} /></a>
           </div>
         </header>
         

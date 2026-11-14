@@ -68,20 +68,21 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-
+      
       - name: Build application image
         run: docker build --tag streamwise:ci .
-
+        
       - name: Smoke test application container
         run: |
           docker run --detach --name streamwise-ci --publish 8000:8000 streamwise:ci
           sleep 10
           HTTP_STATUS=$(curl -s -o /dev/null -w "%{http_code}" http://127.0.0.1:8000/readyz)
+          docker stop streamwise-ci
           if [ "$HTTP_STATUS" -eq 200 ]; then
             echo "Container is healthy (HTTP 200)"
+            exit 0
           else
             echo "Container failed with HTTP $HTTP_STATUS"
             docker logs streamwise-ci
             exit 1
           fi
-          docker stop streamwise-ci

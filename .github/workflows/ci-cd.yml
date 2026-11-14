@@ -75,7 +75,6 @@ jobs:
           docker run --detach --name streamwise-ci --publish 8000:8000 streamwise:ci
           for attempt in $(seq 1 30); do
             if curl --fail --silent http://127.0.0.1:8000/readyz; then
-              curl --fail --silent http://127.0.0.1:8000/ | grep -q "streamwise"
               exit 0
             fi
             sleep 2

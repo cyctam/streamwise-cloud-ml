@@ -1,0 +1,32 @@
+{% extends "base.html" %}
+{% block title %}Forecasting &middot; {% endblock %}
+{% block main %}
+<h1>Forecasting</h1>
+<p class="lede">Projected daily streams for a title, with an 80% band.</p>
+<div class="split">
+  <form id="form" novalidate>
+    <div class="field"><label for="content_id">CONTENT ID</label><input id="content_id" name="content_id" value="content_00001" autocomplete="off" required></div>
+    <div class="field"><label for="periods">HORIZON (DAYS)</label><input id="periods" name="periods" type="number" min="1" max="365" value="30" required></div>
+    <div class="field"><label for="method">METHOD</label>
+      <select id="method" name="method">{% for m in methods %}<option value="{{ m }}">{{ m|replace('_', ' ')|capitalize }}</option>{% endfor %}</select></div>
+    <button type="submit">Run forecast</button>
+    <p id="error" class="err" role="alert" hidden></p>
+  </form>
+  <div aria-live="polite">
+    <p id="empty" class="empty">Run a forecast to see the projection.</p>
+    <section id="result" hidden>
+      <dl class="stats">
+        <div><dt>Total</dt><dd id="s-total"></dd></div>
+        <div><dt>Avg / day</dt><dd id="s-avg"></dd></div>
+        <div><dt>Min</dt><dd id="s-min"></dd></div>
+        <div><dt>Max</dt><dd id="s-max"></dd></div>
+      </dl>
+      <svg id="chart" class="chart" viewBox="0 0 720 300" role="img" aria-label="Forecast chart"></svg>
+      <p id="hover"></p>
+      <details><summary>Data table</summary>
+        <table><thead><tr><th>Date</th><th class="n">Forecast</th><th class="n">Low</th><th class="n">High</th></tr></thead><tbody id="rows"></tbody></table>
+      </details>
+    </section>
+  </div>
+</div>
+{% endblock %}

@@ -1,0 +1,32 @@
+{% extends "base.html" %}
+{% block title %}Prediction &middot; {% endblock %}
+{% block main %}
+<h1>Prediction</h1>
+<p class="lede">Probability that a user streams a title, with the factors behind the score.</p>
+<div class="split">
+  <form id="form" novalidate>
+    <div class="field"><label for="user_id">USER ID</label><input id="user_id" name="user_id" value="user_00001" autocomplete="off" required></div>
+    <div class="field"><label for="content_id">CONTENT ID</label><input id="content_id" name="content_id" value="content_00001" autocomplete="off" required></div>
+    <div class="field"><label for="user_state">SESSION</label>
+      <select id="user_state" name="user_state">{% for s in states %}<option value="{{ s }}">{{ s|capitalize }}</option>{% endfor %}</select></div>
+    <button type="submit">Run prediction</button>
+    <p id="error" class="err" role="alert" hidden></p>
+  </form>
+  <div aria-live="polite">
+    <p id="empty" class="empty">Run a prediction to see the score.</p>
+    <section id="result" hidden>
+      <div class="score"><span id="score">0</span><small>%</small></div>
+      <div class="track"><i id="bar"></i></div>
+      <dl class="kv">
+        <dt>Confidence</dt><dd id="confidence"></dd>
+        <dt>Action</dt><dd id="rec"></dd>
+        <dt>Factors</dt><dd><ul id="factors" class="plain"></ul></dd>
+      </dl>
+    </section>
+    <section id="log-box" hidden>
+      <h2>This session</h2>
+      <table id="log"><thead><tr><th>Time</th><th>User</th><th>Content</th><th class="n">Score</th></tr></thead><tbody></tbody></table>
+    </section>
+  </div>
+</div>
+{% endblock %}

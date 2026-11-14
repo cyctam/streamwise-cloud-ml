@@ -1,0 +1,10 @@
+.git
+.github
+.venv
+tests
+machine_learning
+dataset
+ETL
+services
+infrastructure
+*.md

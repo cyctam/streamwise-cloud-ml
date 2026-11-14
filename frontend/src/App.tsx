@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import {
   Activity, ArrowUpRight, BarChart3, BrainCircuit, ChevronDown, Database,
   FileChartColumn, Gauge, Github, Layers3, LayoutDashboard, Menu, Network,
-  RefreshCw, Sparkles, Users, X, Clock3, BarChart3 as BarChartIcon,
+  RefreshCw, Sparkles, Users, X, BarChart3 as BarChartIcon,
 } from 'lucide-react';
 import {
   Area, AreaChart, Bar, BarChart, CartesianGrid, Cell, Legend, Line, LineChart,
@@ -301,7 +301,7 @@ function Overview({ data, loading }: { data: OverviewResponse | null; loading: b
             <div><span className="section-kicker">TAXONOMY</span><h2>Interaction signals</h2></div>
           </div>
           <div>
-            {(data?.event_distribution || []).map((item, index) => {
+            {(data?.event_distribution || []).map((item) => {
               const max = Math.max(...(data?.event_distribution || []).map(r => r.count), 1);
               return (
                 <div className="event-bar-row" key={item.event}>

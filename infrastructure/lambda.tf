@@ -2,7 +2,7 @@ resource "aws_lambda_layer_version" "dependencies" {
   s3_bucket           = aws_s3_bucket.models.bucket
   s3_key              = aws_s3_object.lambda_layer.key
   layer_name          = "${local.name}-python-dependencies"
-  source_code_hash    = filebase64sha256("${path.module}/.build/python-dependencies.zip")
+  source_code_hash    = try(filebase64sha256("${path.module}/.build/python-dependencies.zip"), null)
   compatible_runtimes      = ["python3.12"]
   compatible_architectures = ["x86_64"]
 }
@@ -18,7 +18,7 @@ resource "aws_lambda_function" "api" {
   runtime          = "python3.12"
   handler          = "api.lambda_handler.handler"
   filename         = "${path.module}/.build/streamwise-api.zip"
-  source_code_hash = filebase64sha256("${path.module}/.build/streamwise-api.zip")
+  source_code_hash = try(filebase64sha256("${path.module}/.build/streamwise-api.zip"), null)
   memory_size      = var.lambda_memory_mb
   timeout          = var.lambda_timeout_s
   layers           = [aws_lambda_layer_version.dependencies.arn]

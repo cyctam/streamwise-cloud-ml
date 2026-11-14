@@ -26,6 +26,10 @@ jobs:
       - run: python -m pip install --upgrade pip
       - run: pip install -r requirements-dev.txt
       - run: ruff check backend dataset scripts tests api
+      - name: Generate dataset and train model (data/ and artifacts/ are gitignored)
+        run: |
+          python dataset/generate.py --output data/raw
+          python -m backend.ml.train
       - run: pytest -q
       - name: Verify reproducible model training
         run: python -m backend.ml.train --artifact-dir "$RUNNER_TEMP/streamwise-artifacts"

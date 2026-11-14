@@ -23,12 +23,17 @@ RUN pip install --no-cache-dir -r requirements.txt \
 COPY backend/ ./backend/
 COPY data/raw/ ./data/raw/
 COPY artifacts/ ./artifacts/
+COPY dataset/ ./dataset/
+# data/ and artifacts/ are gitignored, so build them when the checkout does not have them.
+RUN if [ ! -f data/raw/user_interactions.csv ]; then python dataset/generate.py --output data/raw; fi \
+    && if [ ! -f artifacts/hybrid_recommender.pkl ]; then python -m backend.ml.train; fi
 COPY --from=frontend-build /workspace/dist ./frontend/dist
 
 RUN chown -R app:app /app
 USER app
 EXPOSE 8000
 HEALTHCHECK --interval=30s --timeout=5s --start-period=20s --retries=3 \
-    CMD python -c "from urllib.request import urlopen; urlopen('http://127.0.0.1:8000/readyz', timeout=3)"
+    CMD python -c "import os; from urllib.request import urlopen; urlopen('http://127.0.0.1:' + os.getenv('PORT', '8000') + '/readyz', timeout=3)"
 
-CMD ["uvicorn", "backend.main:app", "--host", "0.0.0.0", "--port", "8000"]
+# Hosting platforms such as Render inject PORT; default to 8000 locally.
+CMD ["sh", "-c", "uvicorn backend.main:app --host 0.0.0.0 --port ${PORT:-8000}"]

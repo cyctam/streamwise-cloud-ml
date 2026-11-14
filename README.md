@@ -1,126 +1,270 @@
 # Streamwise
 
-Stream prediction and demand forecasting on AWS, with infrastructure as code, a CI/CD pipeline and a one-command demo deployment.
+**A hybrid recommendation and streaming analytics platform built with Python, React, and AWS.**
 
-Streamwise scores how likely a user is to stream a title (hybrid recommender) and forecasts daily streams for a title (four time-series methods).
+Streamwise ranks unseen titles for a user by combining content similarity with collaborative signals learned from historical interactions. The repository includes a reproducible synthetic benchmark, model training and evaluation, a FastAPI inference service, a React analytics workspace, Docker packaging, Terraform infrastructure, and CI checks.
 
-> The frontend is deployed on Vercel in **demo mode**. The production architecture is designed for AWS and provisioned with Terraform (`infrastructure/`). It is validated in CI but not applied by default.
+> **Dataset notice:** the checked-in user profiles, catalog, and interaction events are generated synthetic data. They are provided for repeatable engineering experiments, not as real customer data. Model metrics are benchmark measurements on this dataset, not production performance claims.
 
 ## Architecture
 
+### Local application
+
+```mermaid
+flowchart TD
+    A[CSV benchmark datasets] --> B[Data validation and preparation]
+    B --> C[TF-IDF content representation]
+    B --> D[Weighted user-item matrix]
+    C --> E[Hybrid ranking model]
+    D --> F[TruncatedSVD factors]
+    F --> E
+    E --> G[Model artifact and evaluation report]
+    G --> H[FastAPI inference and analytics API]
+    A --> H
+    H --> I[React + TypeScript dashboard]
+```
+
+### AWS deployment path
+
 ```mermaid
 flowchart LR
-  User((User)) --> Web["Frontend (Flask)<br/>Vercel, demo mode"]
-  Web -- "live mode, x-api-key" --> APIGW[API Gateway]
-  APIGW --> L1[Lambda: prediction]
-  APIGW --> L2[Lambda: forecasting]
-  L1 --> DDB[(DynamoDB)]
-  L2 --> DDB
-  L1 --> S3[(S3 model bucket)]
-  L2 --> S3
-  Glue[Glue / Spark ETL] --> S3
-  NB[Training notebook] --> S3
-  NB --> DDB
+    V[Vercel static frontend] -->|HTTPS / VITE_API_URL| G[API Gateway REST API]
+    G --> L[AWS Lambda + Mangum]
+    L --> S[(Private S3 model artifacts)]
+    L --> D[Packaged benchmark datasets]
+    L --> C[CloudWatch Logs]
+    T[Terraform] --> G
+    T --> L
+    T --> S
 ```
 
-In demo mode the frontend answers from a deterministic synthetic backend and never calls AWS.
+The local Docker image serves the built React application and FastAPI from one container. The AWS path packages FastAPI for Lambda through Mangum; Terraform provisions API Gateway, Lambda, the dependency layer, a private versioned S3 model bucket, IAM permissions, and CloudWatch log retention. AWS resources are not considered deployed until `terraform apply` succeeds and the deployed API is smoke-tested.
 
-## Repository layout
+## Machine learning
 
-| Path | What it is |
-|------|------------|
-| `web/` | Flask app and UI (`demo.py` synthetic backend, `live.py` AWS backend) |
-| `api/index.py`, `vercel.json` | Vercel entrypoint and routing |
-| `infrastructure/` | Terraform: S3, DynamoDB, IAM, Lambda, API Gateway, usage plan and API key |
-| `services/lambda/` | `prediction` and `forecasting` Lambda handlers |
-| `ETL/` | AWS Glue / Spark job |
-| `machine_learning/` | Training notebook (TF-IDF + SVD hybrid recommender) |
-| `dataset/` | Synthetic dataset generator |
-| `tests/` | pytest suite for the web app |
-| `.github/workflows/ci-cd.yml` | Lint, tests, Terraform validate, Docker smoke test, optional Vercel deploy |
+The recommendation model combines two signals:
 
-## Run it locally
+| Component | Method | Weight | Input |
+|---|---|---:|---|
+| Content-based | TF-IDF cosine similarity | 45% | Title, genre, content type, language, studio |
+| Collaborative | TruncatedSVD latent factors | 55% | Weighted positive user-item interactions |
 
-The app has two modes, set by `APP_MODE`: `demo` (default, no AWS or credentials) and `live` (proxies to API Gateway).
+Positive event weights are defined in `backend/ml/hybrid.py`. Previously interacted titles are filtered from recommendation results. Users with no positive training interactions use their declared preferred genre and catalog popularity as a cold-start content signal.
+
+The training command performs a deterministic per-user holdout split of unique positive user-item pairs. It reports Precision@10, Recall@10, and NDCG@10 for the hybrid model and a popularity baseline. The final model is trained on all available positive interactions and saved as a pickle artifact.
+
+**Score semantics:** recommendation scores are relative ranking values, not calibrated probabilities. The project does not claim that a score of `0.8` means an 80% chance of viewing.
+
+### Included benchmark data
+
+| File | Records | Purpose |
+|---|---:|---|
+| `data/raw/user_profiles.csv` | 500 | User attributes and preferred genre |
+| `data/raw/content_catalog.csv` | 240 | Streaming title metadata |
+| `data/raw/user_interactions.csv` | 27,613 | Timestamped playback and engagement events |
+
+Regenerate the benchmark deterministically:
 
 ```bash
-cp .env.example .env
-python -m venv .venv && source .venv/bin/activate
+python -m dataset.generate --seed 42
+```
+
+## Technology stack
+
+- **Frontend:** React 18, TypeScript, Vite, Recharts, Lucide
+- **API:** Python 3.12, FastAPI, Pydantic
+- **Machine learning:** pandas, NumPy, SciPy, scikit-learn
+- **Cloud:** AWS Lambda, API Gateway, S3, CloudWatch, IAM
+- **Infrastructure as Code:** Terraform
+- **Containerization:** Docker, Docker Compose
+- **CI:** GitHub Actions, pytest, Ruff, TypeScript build, Terraform validation, Docker build
+
+## Repository structure
+
+```text
+streamwise/
+├── api/                         # AWS Lambda + Mangum entrypoint
+├── artifacts/                   # Trained recommender and evaluation report
+├── backend/
+│   ├── main.py                  # FastAPI routes and application setup
+│   └── ml/
+│       ├── hybrid.py            # Hybrid recommender implementation
+│       └── train.py             # Training and offline evaluation
+├── data/raw/                    # Synthetic benchmark CSV files
+├── dataset/generate.py          # Reproducible dataset generator
+├── frontend/                    # React + TypeScript application
+├── infrastructure/              # AWS Terraform configuration
+├── machine_learning/README.md   # Model methodology and training notes
+├── scripts/package_lambda.py    # Build Lambda function and dependency layer
+├── tests/                       # API and inference tests
+├── Dockerfile
+├── docker-compose.yml
+├── requirements.txt
+└── requirements-dev.txt
+```
+
+## Run locally
+
+### Prerequisites
+
+- Python 3.12
+- Node.js 22 or later
+- npm
+- Docker (optional, for containerized execution)
+
+### 1. Install Python dependencies
+
+From the repository root:
+
+```bash
+python -m venv .venv
+
+# macOS / Linux
+source .venv/bin/activate
+
+# Windows PowerShell
+.venv\Scripts\Activate.ps1
+
+python -m pip install --upgrade pip
 pip install -r requirements-dev.txt
-python -m web.app            # http://127.0.0.1:8000
-pytest -q && ruff check .
 ```
 
-With Docker:
+### 2. Train the model
 
 ```bash
-docker build -t streamwise .
-docker run --rm -p 8000:8000 streamwise      # http://localhost:8000
-# or: docker compose up --build
+python -m backend.ml.train
 ```
 
-## Configuration
+This writes `artifacts/hybrid_recommender.pkl` and `artifacts/metrics.json`. The included artifact is provided for a quick start; retrain after changing the source data or model implementation.
 
-| Variable | Default | Notes |
-|----------|---------|-------|
-| `APP_MODE` | `demo` | `demo` or `live` |
-| `PREDICTION_API_URL` | none | live: API Gateway stage URL (Terraform output `api_url`) |
-| `FORECAST_API_URL` | none | live: same URL |
-| `API_GATEWAY_KEY` | none | live: sent as `x-api-key` (Terraform output `api_key`) |
-| `REQUEST_TIMEOUT` | `10` | live: seconds before an upstream call fails |
-| `PORT`, `LOG_LEVEL` | `8000`, `INFO` | local server |
+### 3. Start the API
 
-The web app needs no AWS credentials, only the API Gateway URL and key. Never commit `.env`.
+In terminal 1:
 
-## Infrastructure (Terraform)
+```bash
+uvicorn backend.main:app --reload --host 127.0.0.1 --port 8000
+```
 
-`infrastructure/` provisions, per environment:
+API documentation is available at `http://127.0.0.1:8000/docs`.
 
-- S3 bucket for model artifacts (private, versioned, encrypted)
-- Four DynamoDB tables (on-demand billing, encrypted, point-in-time recovery): users, content embeddings, stream history, user interactions
-- Two Lambda functions (Python 3.12) packaged from `services/lambda/`, each with its own least-privilege IAM role (read-only on the tables and model bucket) and a CloudWatch log group with 14-day retention
-- A regional REST API with `POST /predict` and `POST /forecast`, both requiring an API key, plus a usage plan (5 req/s, 1000 req/day by default)
+### 4. Start the frontend
+
+In terminal 2:
+
+```bash
+cd frontend
+npm install
+npm run dev
+```
+
+Open `http://localhost:5173`. Vite proxies `/api` requests to the local FastAPI service on port `8000`; no frontend environment variable is required for local development.
+
+### 5. Run tests and checks
+
+```bash
+pytest -q
+ruff check backend dataset scripts tests api
+
+cd frontend
+npm run typecheck
+npm run build
+```
+
+## Docker
+
+Build and run the complete application (React static build + FastAPI API) in one container:
+
+```bash
+docker compose up --build
+```
+
+Open `http://localhost:8000`. The container runs as a non-root user. `/healthz` is the liveness endpoint and `/readyz` verifies that the dataset and trained model are available; the container health check uses `/readyz`. To build without Compose:
+
+```bash
+docker build -t streamwise:local .
+docker run --rm -p 8000:8000 streamwise:local
+```
+
+## API reference
+
+| Method | Endpoint | Purpose |
+|---|---|---|
+| `GET` | `/healthz` | Liveness check |
+| `GET` | `/readyz` | Readiness check for dataset and model artifact |
+| `GET` | `/api/overview` | Dataset KPIs and interaction distributions |
+| `GET` | `/api/datasets` | Dataset inventory and quality counts |
+| `GET` | `/api/datasets/{name}/preview` | Read-only CSV preview |
+| `GET` | `/api/datasets/{name}/profile` | Column-level EDA and descriptive statistics |
+| `GET` | `/api/users` | Benchmark user lookup |
+| `GET` | `/api/content` | Content catalog lookup |
+| `GET` | `/api/model/status` | Model artifact status |
+| `GET` | `/api/model/metrics` | Offline evaluation report |
+| `GET` | `/api/recommendations/{user_id}` | Ranked unseen titles for a user |
+| `POST` | `/api/recommendations/score` | Explain a user-title hybrid score |
+| `GET` | `/api/forecast/{content_id}` | Statistical forecast from observed playback history |
+
+Forecast methods are explicit statistical baselines (`moving_average`, `linear_trend`, `seasonal_naive`). Forecast dates begin after the latest timestamp available for the selected title, rather than assuming the benchmark is current. They are not part of the hybrid recommendation model and are not described as trained ML forecasting models. A title without observed play/completion history returns an unavailable response; the API does not generate random fallback values.
+
+## AWS deployment with Terraform
+
+The Terraform deployment uses a Lambda-compatible dependency layer. Build the deployment assets from the repository root first:
+
+```bash
+python scripts/package_lambda.py
+```
+
+This command uses the official AWS Lambda Python 3.12 container to build ABI-compatible dependencies, prunes test-only files, checks the Lambda uncompressed package limit, and packages the FastAPI application, benchmark CSV files, and Mangum entrypoint. Docker and internet access to the Python package index are required for the dependency build.
+
+Then provision the AWS resources:
 
 ```bash
 cd infrastructure
+terraform fmt -recursive
 terraform init
+terraform validate
 terraform plan
 terraform apply
-terraform output api_url          # PREDICTION_API_URL and FORECAST_API_URL
-terraform output -raw api_key     # API_GATEWAY_KEY
 ```
 
-After applying, upload `hybrid_model.pkl` and `forecasting_model.pkl` to the `models/` prefix of the bucket from `terraform output model_bucket`, and point the training notebook and ETL at the table and bucket names Terraform outputs. Terraform names tables `<project>-<env>-<name>`, so update the hard-coded `ContentEmbeddings` in the notebook.
+After apply, retrieve the API base URL:
 
-State is local by default. For shared use, add an S3 backend with DynamoDB locking.
+```bash
+terraform output -raw api_url
+```
 
-## CI/CD
+For a static Vercel frontend, configure the Vercel project with **Root Directory** set to `frontend`, set `VITE_API_URL` to the API Gateway URL (including the stage, for example `/dev`), and set `cors_origins` in Terraform to the exact deployed frontend origin before applying. The default Terraform CORS origin is `*` for initial testing; use an explicit origin for a public deployment.
 
-On every push and pull request, `ci-cd.yml` runs:
+Terraform provisions billable AWS resources. Review the plan and estimated costs before applying. Destroy resources when finished:
 
-1. `ruff check` and `pytest`
-2. `terraform init -backend=false` and `terraform validate` in `infrastructure/`
-3. `docker build` and a `/healthz` smoke test of the container
-4. Optional deploy to Vercel, only after 1 to 3 pass
+```bash
+terraform destroy -var='force_destroy_bucket=true'
+```
 
-## Deploy the frontend to Vercel
+The destroy flag explicitly permits Terraform to empty the versioned model bucket, including noncurrent object versions. Review the target workspace and state before using it.
 
-1. Push this repo to GitHub.
-2. In Vercel, **Add New Project**, import the repo, keep the defaults. `vercel.json` handles the rest.
-3. Leave `APP_MODE` unset for the demo. For the real backend, set `APP_MODE=live` plus the three variables above in Project Settings.
+### Infrastructure notes
 
-To deploy from Actions instead of Vercel's Git integration, set the repo variable `ENABLE_VERCEL_DEPLOY=true` and the secrets `VERCEL_TOKEN`, `VERCEL_ORG_ID`, `VERCEL_PROJECT_ID`. Pull requests then get previews and `main` goes to production.
+- S3 model artifacts are private, encrypted, and versioned.
+- Lambda reads the model artifact from S3 using a least-privilege read policy.
+- API Gateway proxies requests to the FastAPI application through Mangum.
+- API Gateway throttling and CloudWatch log retention are configurable.
+- The API currently uses the synthetic benchmark dataset packaged with the Lambda. It is not a live streaming ingestion system and does not ingest real user events.
+- The API is unauthenticated by default and is intended for a synthetic public demo. For real user data, add an authentication/authorization layer and stricter network and data controls before deployment.
 
-## Backend API
+## CI pipeline
 
-| Endpoint | Body | Notes |
-|----------|------|-------|
-| `POST /api/predict` | `user_id`, `content_id`, `context.user_state` | `prediction_percentage`, `confidence`, `factors`, `recommendation` |
-| `POST /api/forecast` | `content_id`, `periods` (1-365), `method` | `moving_average`, `exponential_smoothing`, `linear_trend`, `seasonal` |
-| `GET /healthz` | none | `{"status": "ok", "mode": ...}` |
+GitHub Actions validates the Python API and model code, executes pytest, type-checks and builds the React application, validates Terraform configuration, and builds the Docker image. CI does not run `terraform apply` or deploy AWS resources automatically.
 
-## Roadmap
+## Configuration
 
-- Remote Terraform state and a `terraform plan` job using GitHub OIDC
-- Deploy the Lambdas from CI
-- CloudWatch dashboards and alarms
+| Variable | Default | Description |
+|---|---|---|
+| `DATA_DIR` | `./data/raw` | Directory containing the three benchmark CSV files |
+| `ARTIFACT_DIR` | `./artifacts` | Local model and metrics directory |
+| `CORS_ORIGINS` | `http://localhost:5173,http://127.0.0.1:5173` | Comma-separated allowed browser origins |
+| `MODEL_BUCKET` | unset | Optional S3 bucket for the Lambda model artifact |
+| `MODEL_KEY` | `models/hybrid_recommender.pkl` | S3 key for the trained model |
+| `METRICS_KEY` | `models/metrics.json` | S3 key for the evaluation report |
+| `VITE_API_URL` | empty | API base URL for the React frontend |
+
+Never commit `.env`, AWS credentials, Terraform state, or secret values.

@@ -1,4 +1,4 @@
-name: CI/CD
+name: CI
 
 on:
   push:
@@ -8,18 +8,49 @@ on:
 permissions:
   contents: read
 
+concurrency:
+  group: streamwise-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
-  test:
+  python:
+    name: Python quality and tests
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
-        with: { python-version: "3.12", cache: pip, cache-dependency-path: requirements-dev.txt }
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: requirements-dev.txt
+      - run: python -m pip install --upgrade pip
       - run: pip install -r requirements-dev.txt
-      - run: ruff check .
+      - run: ruff check backend dataset scripts tests api
+      - name: Generate dataset and train model (data/ and artifacts/ are gitignored)
+        run: |
+          python dataset/generate.py --output data/raw
+          python -m backend.ml.train
       - run: pytest -q
+      - name: Verify reproducible model training
+        run: python -m backend.ml.train --artifact-dir "$RUNNER_TEMP/streamwise-artifacts"
+
+  frontend:
+    name: Frontend typecheck and build
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: frontend
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - run: npm install --no-audit --no-fund
+      - run: npm run typecheck
+      - run: npm run build
 
   terraform:
+    name: Terraform validation
     runs-on: ubuntu-latest
     defaults:
       run:
@@ -27,38 +58,31 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - uses: hashicorp/setup-terraform@v3
-        with: { terraform_version: "1.9.8" }
+        with:
+          terraform_version: "1.9.8"
       - run: terraform init -backend=false -input=false
       - run: terraform validate
 
   docker:
-    needs: test
+    name: Container build
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - run: docker build -t streamwise:ci .
-      - name: Smoke test container
+      
+      - name: Build application image
+        run: docker build --tag streamwise:ci .
+        
+      - name: Smoke test application container
         run: |
-          docker run -d --name sw -p 8000:8000 streamwise:ci
-          for i in $(seq 1 15); do curl -fsS localhost:8000/healthz && exit 0; sleep 1; done
-          docker logs sw; exit 1
-
-  # Optional: enable by setting repository variable ENABLE_VERCEL_DEPLOY=true and the
-  # secrets VERCEL_TOKEN, VERCEL_ORG_ID, VERCEL_PROJECT_ID. Skip this if you use
-  # Vercel's own Git integration, otherwise every push deploys twice.
-  deploy:
-    needs: [test, docker, terraform]
-    if: vars.ENABLE_VERCEL_DEPLOY == 'true' && (github.event_name == 'push' || github.event.pull_request.head.repo.full_name == github.repository)
-    runs-on: ubuntu-latest
-    env:
-      VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
-      VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
-      TARGET: ${{ github.ref == 'refs/heads/main' && 'production' || 'preview' }}
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
-        with: { node-version: 20 }
-      - run: npm i -g vercel@latest
-      - run: vercel pull --yes --environment=$TARGET --token=${{ secrets.VERCEL_TOKEN }}
-      - run: vercel build $([ "$TARGET" = production ] && echo --prod) --token=${{ secrets.VERCEL_TOKEN }}
-      - run: vercel deploy --prebuilt $([ "$TARGET" = production ] && echo --prod) --token=${{ secrets.VERCEL_TOKEN }}
+          docker run --detach --name streamwise-ci --publish 8000:8000 streamwise:ci
+          sleep 10
+          HTTP_STATUS=$(curl -s -o /dev/null -w "%{http_code}" http://127.0.0.1:8000/readyz)
+          docker stop streamwise-ci
+          if [ "$HTTP_STATUS" -eq 200 ]; then
+            echo "Container is healthy (HTTP 200)"
+            exit 0
+          else
+            echo "Container failed with HTTP $HTTP_STATUS"
+            docker logs streamwise-ci
+            exit 1
+          fi

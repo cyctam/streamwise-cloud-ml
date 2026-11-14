@@ -1,40 +1,31 @@
-# Machine Learning — Model Training
+# Machine Learning Pipeline
 
-This directory contains the Jupyter notebook used to train the hybrid content recommendation model.
+The maintained training and evaluation implementation lives in `backend/ml/`.
 
-## Setup
+## Model
 
-Update the S3 bucket name in the notebook before running:
+Streamwise uses a hybrid recommendation ranker with two independently computed signals:
 
-```python
-# Replace with your actual S3 bucket
-bucket_name = "your-bucket-name"
-```
+- **Content-based filtering (45%)** — TF-IDF vectors over title, genre, content type, language, and studio metadata. A user's content profile is formed from weighted positive interactions.
+- **Collaborative filtering (55%)** — TruncatedSVD latent factors learned from the sparse user-item interaction matrix.
 
-Update the `s3fs` library if needed:
+The output is a relative ranking score. It is not a calibrated probability that a user will stream a title.
+
+## Train and evaluate
+
+From the repository root:
 
 ```bash
-pip install --upgrade s3fs
+python -m backend.ml.train
 ```
 
-## Model Architecture
+The command reads the three CSV files in `data/raw/`, performs a deterministic per-user holdout split of unique positive user-item pairs, compares the hybrid ranker with a popularity baseline, and writes:
 
-The training notebook implements three components:
+- `artifacts/hybrid_recommender.pkl`
+- `artifacts/metrics.json`
 
-| Component | Description |
-|-----------|-------------|
-| `ContentBasedRecommender` | TF-IDF similarity between content metadata (genre, type, studio) |
-| `CollaborativeRecommender` | SVD matrix factorization on user-content interaction history |
-| `HybridRecommender` | Weighted combination of content-based and collaborative scores |
+The included dataset is synthetic. Evaluation metrics are benchmark results for this generated dataset and must not be presented as production model performance.
 
-## Training Pipeline
+## Reproducibility
 
-1. Load user profiles, content catalog, and interaction data from S3.
-2. Train content-based and collaborative filtering models.
-3. Combine into a hybrid recommender.
-4. Save the trained model to S3 and update DynamoDB with content embeddings.
-
-## Output
-
-- Model artifact uploaded to S3 at the configured bucket and key path.
-- Content embeddings stored in DynamoDB for use by the prediction Lambda.
+The default random seed is `42`. Override it with `--seed` when running controlled experiments. The metrics file records the dataset SHA-256 fingerprint, training seed, training timestamp, holdout protocol, and baseline comparison.

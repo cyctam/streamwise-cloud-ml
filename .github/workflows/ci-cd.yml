@@ -73,11 +73,7 @@ jobs:
       - name: Smoke test application container
         run: |
           docker run --detach --name streamwise-ci --publish 8000:8000 streamwise:ci
-          for attempt in $(seq 1 30); do
-            if curl --fail --silent http://127.0.0.1:8000/readyz; then
-              exit 0
-            fi
-            sleep 2
-          done
-          docker logs streamwise-ci
-          exit 1
+          sleep 10
+          curl --fail --silent http://127.0.0.1:8000/readyz
+          curl --fail --silent http://127.0.0.1:8000/healthz
+          docker stop streamwise-ci

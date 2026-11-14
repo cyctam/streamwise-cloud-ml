@@ -33,24 +33,33 @@ resource "aws_s3_object" "model" {
   bucket      = aws_s3_bucket.models.id
   key         = "models/hybrid_recommender.pkl"
   source      = "${path.module}/../artifacts/hybrid_recommender.pkl"
-  source_hash = filemd5("${path.module}/../artifacts/hybrid_recommender.pkl")
   content_type = "application/octet-stream"
+
+  lifecycle {
+    ignore_changes = [source, source_hash]
+  }
 }
 
 resource "aws_s3_object" "metrics" {
   bucket      = aws_s3_bucket.models.id
   key         = "models/metrics.json"
   source      = "${path.module}/../artifacts/metrics.json"
-  source_hash = filemd5("${path.module}/../artifacts/metrics.json")
   content_type = "application/json"
+
+  lifecycle {
+    ignore_changes = [source, source_hash]
+  }
 }
 
 resource "aws_s3_object" "lambda_layer" {
   bucket       = aws_s3_bucket.models.id
   key          = "deployments/python-dependencies.zip"
   source       = "${path.module}/.build/python-dependencies.zip"
-  source_hash  = filemd5("${path.module}/.build/python-dependencies.zip")
   content_type = "application/zip"
+
+  lifecycle {
+    ignore_changes = [source, source_hash]
+  }
 }
 
 resource "aws_s3_bucket_lifecycle_configuration" "models" {

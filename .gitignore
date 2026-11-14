@@ -23,3 +23,7 @@ Thumbs.db
 .terraform.lock.hcl
 infrastructure/.build/
 crash.log
+data/
+artifacts/
+*.pkl
+*.csv

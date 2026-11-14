@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import {
   Activity, ArrowUpRight, BarChart3, BrainCircuit, ChevronDown, Database,
   FileChartColumn, Gauge, Github, Layers3, LayoutDashboard, Menu, Network,
-  RefreshCw, Sparkles, Users, X,
+  RefreshCw, Sparkles, Users, X, Clock3, BarChart3 as BarChartIcon,
 } from 'lucide-react';
 import {
   Area, AreaChart, Bar, BarChart, CartesianGrid, Cell, Legend, Line, LineChart,
@@ -20,7 +20,7 @@ const NAV: { id: Page; label: string; icon: typeof LayoutDashboard; group: strin
   { id: 'datasets', label: 'Data explorer', icon: Database, group: 'WORKSPACE' },
   { id: 'recommendations', label: 'Recommendations', icon: Sparkles, group: 'MACHINE LEARNING' },
   { id: 'model', label: 'Model evaluation', icon: BrainCircuit, group: 'MACHINE LEARNING' },
-  { id: 'forecasting', label: 'Stream forecasting', icon: BarChart3, group: 'ANALYTICS' },
+  { id: 'forecasting', label: 'Stream forecasting', icon: BarChartIcon, group: 'ANALYTICS' },
   { id: 'architecture', label: 'Architecture', icon: Network, group: 'ENGINEERING' },
 ];
 const CHART_COLORS = ['#10b981', '#3b82f6', '#8b5cf6', '#f59e0b', '#ec4899', '#06b6d4'];
@@ -301,7 +301,7 @@ function Overview({ data, loading }: { data: OverviewResponse | null; loading: b
             <div><span className="section-kicker">TAXONOMY</span><h2>Interaction signals</h2></div>
           </div>
           <div>
-            {(data?.event_distribution || []).map((item) => {
+            {(data?.event_distribution || []).map((item, index) => {
               const max = Math.max(...(data?.event_distribution || []).map(r => r.count), 1);
               return (
                 <div className="event-bar-row" key={item.event}>
@@ -351,7 +351,7 @@ function Datasets({ datasets, selected, preview, profile, onSelect }: any) {
           <div className="table-scroll">
             <table>
               <thead><tr>{preview.columns.map((c: string) => <th key={c}>{c.replace(/_/g, ' ')}</th>)}</tr></thead>
-              <tbody>{preview.rows.map((row: any, rowIndex: number) => <tr key={rowIndex}>{preview.columns.map((c: string) => <td key={c}>{String(row[c] ?? '—')}</td>)}</tr>)}</tbody>
+              <tbody>{preview.rows.map((row: any, i: number) => <tr key={i}>{preview.columns.map((c: string) => <td key={c}>{String(row[c] ?? '—')}</td>)}</tr>)}</tbody>
             </table>
           </div>
         ) : <div className="empty-state">No data</div>}
